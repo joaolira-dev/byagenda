@@ -67,9 +67,10 @@ const styles = StyleSheet.create({
   },
   label: {
     color: colors.text,
-    fontFamily: typography.fontFamily.medium,
-    fontSize: typography.size.sm,
-    fontWeight: '500',
+    fontFamily: typography.fontFamily.semiBold,
+    fontSize: typography.size.md,
+    fontWeight: '700',
+    marginBottom: spacing.sm,
   },
   inputWrapper: {
     alignItems: 'center',
