@@ -13,7 +13,9 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
+  type TextStyle,
   View,
+  type ViewStyle,
 } from 'react-native';
 
 import { Button, Input } from '@/components';
@@ -26,12 +28,13 @@ type LoginForm = {
   password: string;
 };
 
+type AccountType = 'client' | 'business';
+
 type RegisterForm = {
+  accountType: AccountType;
   name: string;
   email: string;
-  phone: string;
   password: string;
-  confirmPassword: string;
 };
 
 type ForgotForm = {
@@ -50,11 +53,10 @@ const initialLoginForm: LoginForm = {
 };
 
 const initialRegisterForm: RegisterForm = {
+  accountType: 'client',
   name: '',
   email: '',
-  phone: '',
   password: '',
-  confirmPassword: '',
 };
 
 const initialForgotForm: ForgotForm = {
@@ -127,11 +129,13 @@ export default function App() {
           <StartScreen onLogin={() => goTo('login')} onRegister={() => goTo('register')} />
         ) : (
           <ScrollView
-            contentContainerStyle={styles.authScrollContent}
+            contentContainerStyle={
+              screen === 'register' ? styles.registerScrollContent : styles.authScrollContent
+            }
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
           >
-            <AuthBackButton onPress={() => goTo('start')} />
+            <AuthBackButton isRegister={screen === 'register'} onPress={() => goTo('start')} />
 
             {screen === 'login' ? (
               <LoginScreen
@@ -415,16 +419,39 @@ function RegisterScreen({
   onLogin: () => void;
   onSubmit: () => void;
 }) {
+  const [showPassword, setShowPassword] = useState(false);
+
   return (
-    <AuthForm title="Cadastro" subtitle="Crie sua conta para comecar">
+    <AuthForm
+      contentStyle={styles.registerFormContent}
+      subtitle="Vamos comecar com algumas informacoes basicas."
+      subtitleStyle={styles.registerSubtitle}
+      title="Criar conta"
+      titleStyle={styles.registerTitle}
+    >
+      <View style={styles.accountTypeRow}>
+        <AccountTypeOption
+          active={form.accountType === 'client'}
+          icon="person-outline"
+          label="Cliente"
+          onPress={() => onChange('accountType', 'client')}
+        />
+        <AccountTypeOption
+          active={form.accountType === 'business'}
+          icon="storefront-outline"
+          label="Estabelecimento"
+          onPress={() => onChange('accountType', 'business')}
+        />
+      </View>
+
       <Input
         autoCapitalize="words"
         error={errors.name}
-        inputWrapperStyle={styles.figmaInputWrapper}
-        label="Nome"
+        inputWrapperStyle={styles.registerInputWrapper}
+        label="Nome completo"
         onChangeText={(value) => onChange('name', value)}
         placeholder="Seu nome completo"
-        style={styles.figmaInput}
+        style={styles.registerInput}
         value={form.name}
       />
 
@@ -432,65 +459,74 @@ function RegisterScreen({
         autoCapitalize="none"
         autoCorrect={false}
         error={errors.email}
-        inputWrapperStyle={styles.figmaInputWrapper}
+        inputWrapperStyle={styles.registerInputWrapper}
         keyboardType="email-address"
         label="E-mail"
         onChangeText={(value) => onChange('email', value)}
         placeholder="seu@email.com"
-        style={styles.figmaInput}
+        style={styles.registerInput}
         value={form.email}
       />
 
       <Input
-        error={errors.phone}
-        inputWrapperStyle={styles.figmaInputWrapper}
-        keyboardType="phone-pad"
-        label="Telefone"
-        onChangeText={(value) => onChange('phone', value)}
-        placeholder="(00) 00000-0000"
-        style={styles.figmaInput}
-        value={form.phone}
-      />
-
-      <Input
         error={errors.password}
-        inputWrapperStyle={styles.figmaInputWrapper}
+        inputWrapperStyle={styles.registerInputWrapper}
         label="Senha"
         onChangeText={(value) => onChange('password', value)}
         placeholder="Minimo de 6 caracteres"
-        secureTextEntry
-        style={styles.figmaInput}
+        rightIcon={
+          <PasswordVisibilityButton
+            visible={showPassword}
+            onPress={() => setShowPassword((current) => !current)}
+          />
+        }
+        secureTextEntry={!showPassword}
+        style={styles.registerInput}
         value={form.password}
-      />
-
-      <Input
-        error={errors.confirmPassword}
-        inputWrapperStyle={styles.figmaInputWrapper}
-        label="Confirmar senha"
-        onChangeText={(value) => onChange('confirmPassword', value)}
-        placeholder="Repita sua senha"
-        secureTextEntry
-        style={styles.figmaInput}
-        value={form.confirmPassword}
       />
 
       {feedback ? <FeedbackMessage message={feedback} /> : null}
 
       <Button
-        title="Cadastrar"
+        title="Continuar"
         size="large"
         onPress={onSubmit}
-        style={styles.primaryActionButton}
-        textStyle={styles.primaryActionText}
+        style={styles.registerSubmitButton}
+        textStyle={styles.registerSubmitText}
       />
 
-      <View style={styles.authBottomPrompt}>
+      <View style={styles.registerBottomPrompt}>
         <Text style={styles.authPromptMuted}>Ja tem uma conta?</Text>
         <TouchableOpacity activeOpacity={0.72} onPress={onLogin}>
           <Text style={styles.authPromptLink}> Entrar</Text>
         </TouchableOpacity>
       </View>
     </AuthForm>
+  );
+}
+
+function AccountTypeOption({
+  active,
+  icon,
+  label,
+  onPress,
+}: {
+  active: boolean;
+  icon: keyof typeof Ionicons.glyphMap;
+  label: string;
+  onPress: () => void;
+}) {
+  return (
+    <TouchableOpacity
+      activeOpacity={0.8}
+      onPress={onPress}
+      style={[styles.accountTypeOption, active && styles.accountTypeOptionActive]}
+    >
+      <Ionicons color={active ? colors.white : '#8D8D8D'} name={icon} size={25} />
+      <Text style={[styles.accountTypeText, active && styles.accountTypeTextActive]}>
+        {label}
+      </Text>
+    </TouchableOpacity>
   );
 }
 
@@ -540,26 +576,42 @@ function ForgotPasswordScreen({
 
 function AuthForm({
   children,
+  contentStyle,
   title,
+  titleStyle,
   subtitle,
+  subtitleStyle,
 }: {
   children: ReactNode;
+  contentStyle?: ViewStyle;
   title: string;
+  titleStyle?: TextStyle;
   subtitle: string;
+  subtitleStyle?: TextStyle;
 }) {
   return (
     <View style={styles.authForm}>
-      <Text style={styles.formTitle}>{title}</Text>
-      <Text style={styles.formSubtitle}>{subtitle}</Text>
-      <View style={styles.formContent}>{children}</View>
+      <Text style={[styles.formTitle, titleStyle]}>{title}</Text>
+      <Text style={[styles.formSubtitle, subtitleStyle]}>{subtitle}</Text>
+      <View style={[styles.formContent, contentStyle]}>{children}</View>
     </View>
   );
 }
 
-function AuthBackButton({ onPress }: { onPress: () => void }) {
+function AuthBackButton({
+  isRegister = false,
+  onPress,
+}: {
+  isRegister?: boolean;
+  onPress: () => void;
+}) {
   return (
-    <TouchableOpacity activeOpacity={0.72} onPress={onPress} style={styles.backButton}>
-      <Text style={styles.backIcon}>{'<'}</Text>
+    <TouchableOpacity
+      activeOpacity={0.72}
+      onPress={onPress}
+      style={[styles.backButton, isRegister && styles.registerBackButton]}
+    >
+      <Ionicons color="#222222" name="chevron-back" size={31} />
     </TouchableOpacity>
   );
 }
@@ -641,16 +693,8 @@ function validateRegister(form: RegisterForm): FormErrors<RegisterForm> {
     errors.email = 'Informe um e-mail valido.';
   }
 
-  if (onlyNumbers(form.phone).length < 10) {
-    errors.phone = 'Informe um telefone valido.';
-  }
-
   if (form.password.trim().length < 6) {
     errors.password = 'A senha deve ter pelo menos 6 caracteres.';
-  }
-
-  if (form.confirmPassword !== form.password) {
-    errors.confirmPassword = 'As senhas precisam ser iguais.';
   }
 
   return errors;
@@ -668,10 +712,6 @@ function validateForgot(form: ForgotForm): FormErrors<ForgotForm> {
 
 function isValidEmail(value: string) {
   return /\S+@\S+\.\S+/.test(value.trim());
-}
-
-function onlyNumbers(value: string) {
-  return value.replace(/\D/g, '');
 }
 
 function hasErrors<T extends object>(errors: FormErrors<T>) {
@@ -783,11 +823,11 @@ const styles = StyleSheet.create({
     paddingBottom: 148,
   },
   primaryActionButton: {
-    borderRadius: 16,
-    minHeight: 59,
+    borderRadius: 12,
+    minHeight: 52,
   },
   primaryActionText: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: '500',
   },
   loginPrompt: {
@@ -847,21 +887,25 @@ const styles = StyleSheet.create({
   },
   authScrollContent: {
     flexGrow: 1,
-    paddingBottom: spacing.xl,
-    paddingHorizontal: spacing.lg,
+    paddingBottom: 28,
+    paddingHorizontal: 22,
+    paddingTop: 38,
+  },
+  registerScrollContent: {
+    flexGrow: 1,
+    paddingBottom: 42,
+    paddingHorizontal: 30,
     paddingTop: 48,
   },
   backButton: {
     alignItems: 'center',
-    height: 48,
+    height: 40,
     justifyContent: 'center',
-    marginBottom: 46,
-    width: 48,
+    marginBottom: 34,
+    width: 40,
   },
-  backIcon: {
-    color: '#222222',
-    fontSize: 38,
-    lineHeight: 48,
+  registerBackButton: {
+    marginBottom: 46,
   },
   authForm: {
     flex: 1,
@@ -869,28 +913,87 @@ const styles = StyleSheet.create({
   formTitle: {
     color: '#050505',
     fontFamily: typography.fontFamily.bold,
-    fontSize: 30,
+    fontSize: 28,
     fontWeight: '800',
-    marginBottom: spacing.md,
+    marginBottom: 12,
   },
   formSubtitle: {
     color: '#4A4A4A',
     fontFamily: typography.fontFamily.regular,
-    fontSize: 17,
-    lineHeight: 24,
-    marginBottom: spacing.xl,
+    fontSize: 16,
+    lineHeight: 22,
+    marginBottom: 26,
   },
   formContent: {
     gap: 14,
   },
+  registerTitle: {
+    fontSize: 30,
+    marginBottom: 18,
+  },
+  registerSubtitle: {
+    fontFamily: typography.fontFamily.bold,
+    fontSize: 16,
+    fontWeight: '700',
+    lineHeight: 21,
+    marginBottom: 30,
+    maxWidth: 260,
+  },
+  registerFormContent: {
+    gap: 24,
+  },
+  accountTypeRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 30,
+  },
+  accountTypeOption: {
+    alignItems: 'center',
+    backgroundColor: colors.white,
+    borderColor: '#8D8D8D',
+    borderRadius: 12,
+    borderWidth: 1.5,
+    flex: 1,
+    flexDirection: 'row',
+    gap: 10,
+    justifyContent: 'center',
+    minHeight: 58,
+    paddingHorizontal: 10,
+  },
+  accountTypeOptionActive: {
+    backgroundColor: '#1E68F6',
+    borderColor: '#1E68F6',
+  },
+  accountTypeText: {
+    color: '#4A4A4A',
+    flexShrink: 1,
+    fontFamily: typography.fontFamily.regular,
+    fontSize: 15,
+    fontWeight: '500',
+  },
+  accountTypeTextActive: {
+    color: colors.white,
+  },
   figmaInputWrapper: {
     borderColor: '#8D8D8D',
-    borderRadius: 14,
-    minHeight: 56,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    minHeight: 52,
     paddingHorizontal: spacing.md,
   },
   figmaInput: {
-    fontSize: 17,
+    fontSize: 16,
+  },
+  registerInputWrapper: {
+    borderColor: '#8D8D8D',
+    borderRadius: 12,
+    borderWidth: 1.5,
+    minHeight: 52,
+    paddingHorizontal: 16,
+  },
+  registerInput: {
+    color: '#111111',
+    fontSize: 16,
   },
   passwordToggle: {
     alignItems: 'center',
@@ -912,22 +1015,22 @@ const styles = StyleSheet.create({
   googleButton: {
     alignItems: 'center',
     borderColor: '#8D8D8D',
-    borderRadius: 14,
-    borderWidth: 1,
+    borderRadius: 12,
+    borderWidth: 1.5,
     flexDirection: 'row',
     gap: spacing.lg,
     justifyContent: 'center',
-    minHeight: 56,
+    minHeight: 52,
     paddingHorizontal: spacing.lg,
   },
   googleIcon: {
-    height: 28,
-    width: 28,
+    height: 24,
+    width: 24,
   },
   googleText: {
     color: '#050505',
     fontFamily: typography.fontFamily.bold,
-    fontSize: 17,
+    fontSize: 16,
     fontWeight: '800',
   },
   authBottomPrompt: {
@@ -935,6 +1038,21 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'center',
     marginTop: 58,
+  },
+  registerSubmitButton: {
+    borderRadius: 12,
+    marginTop: 2,
+    minHeight: 52,
+  },
+  registerSubmitText: {
+    fontSize: 19,
+    fontWeight: '500',
+  },
+  registerBottomPrompt: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'center',
+    marginTop: 34,
   },
   authPromptMuted: {
     color: '#858585',
