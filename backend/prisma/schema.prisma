@@ -1,8 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Get a free hosted Postgres database in seconds: `npx create-db`
-
 generator client {
   provider = "prisma-client"
   output   = "../src/generated/prisma"
@@ -10,4 +5,197 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+}
+
+enum UserRole {
+  CLIENT
+  OWNER
+
+  @@map("user_role")
+}
+
+enum EstablishmentStatus {
+  PENDING
+  ACTIVE
+  INACTIVE
+
+  @@map("establishment_status")
+}
+
+enum AppointmentStatus {
+  PENDING
+  CONFIRMED
+  COMPLETED
+  CANCELLED_BY_CLIENT
+  CANCELLED_BY_ESTABLISHMENT
+  NO_SHOW
+
+  @@map("appointment_status")
+}
+
+model User {
+  id                  String          @id @default(uuid()) @db.Uuid
+  name                String          @db.VarChar(120)
+  email               String          @unique @db.VarChar(255)
+  passwordHash        String          @map("password_hash") @db.VarChar(255)
+  phone               String?         @db.VarChar(20)
+  avatarUrl           String?         @map("avatar_url") @db.VarChar(2048)
+  role                UserRole        @default(CLIENT)
+  isActive            Boolean         @default(true) @map("is_active")
+  createdAt           DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt           DateTime        @updatedAt @map("updated_at") @db.Timestamptz(3)
+  ownedEstablishments Establishment[] @relation("EstablishmentOwner")
+  appointments        Appointment[]   @relation("ClientAppointments")
+  favorites           Favorite[]
+
+  @@index([role, isActive], map: "users_role_is_active_idx")
+  @@map("users")
+}
+
+model Establishment {
+  id             String                  @id @default(uuid()) @db.Uuid
+  ownerId        String                  @map("owner_id") @db.Uuid
+  name           String                  @db.VarChar(160)
+  slug           String                  @unique @db.VarChar(180)
+  description    String?                 @db.Text
+  phone          String?                 @db.VarChar(20)
+  email          String?                 @db.VarChar(255)
+  logoUrl        String?                 @map("logo_url") @db.VarChar(2048)
+  coverUrl       String?                 @map("cover_url") @db.VarChar(2048)
+  status         EstablishmentStatus     @default(PENDING)
+  timezone       String                  @default("America/Sao_Paulo") @db.VarChar(64)
+  addressLine    String                  @map("address_line") @db.VarChar(255)
+  addressNumber  String?                 @map("address_number") @db.VarChar(20)
+  addressExtra   String?                 @map("address_extra") @db.VarChar(120)
+  neighborhood   String?                 @db.VarChar(120)
+  city           String                  @db.VarChar(120)
+  state          String                  @db.VarChar(2)
+  postalCode     String                  @map("postal_code") @db.VarChar(10)
+  latitude       Decimal?                @db.Decimal(9, 6)
+  longitude      Decimal?                @db.Decimal(9, 6)
+  createdAt      DateTime                @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime                @updatedAt @map("updated_at") @db.Timestamptz(3)
+  owner          User                    @relation("EstablishmentOwner", fields: [ownerId], references: [id], onDelete: Restrict)
+  categories     EstablishmentCategory[]
+  services       Service[]
+  appointments   Appointment[]
+  favorites      Favorite[]
+  businessHours  BusinessHour[]
+  scheduleBlocks ScheduleBlock[]
+
+  @@index([ownerId], map: "establishments_owner_id_idx")
+  @@index([status, city, state], map: "establishments_status_city_state_idx")
+  @@index([latitude, longitude], map: "establishments_coordinates_idx")
+  @@map("establishments")
+}
+
+model Category {
+  id             String                  @id @default(uuid()) @db.Uuid
+  name           String                  @db.VarChar(80)
+  slug           String                  @unique @db.VarChar(100)
+  icon           String?                 @db.VarChar(80)
+  isActive       Boolean                 @default(true) @map("is_active")
+  createdAt      DateTime                @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime                @updatedAt @map("updated_at") @db.Timestamptz(3)
+  establishments EstablishmentCategory[]
+
+  @@index([isActive, name], map: "categories_is_active_name_idx")
+  @@map("categories")
+}
+
+model EstablishmentCategory {
+  establishmentId String        @map("establishment_id") @db.Uuid
+  categoryId      String        @map("category_id") @db.Uuid
+  createdAt       DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  establishment   Establishment @relation(fields: [establishmentId], references: [id], onDelete: Cascade)
+  category        Category      @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@id([establishmentId, categoryId])
+  @@index([categoryId], map: "establishment_categories_category_id_idx")
+  @@map("establishment_categories")
+}
+
+model Service {
+  id              String        @id @default(uuid()) @db.Uuid
+  establishmentId String        @map("establishment_id") @db.Uuid
+  name            String        @db.VarChar(120)
+  description     String?       @db.Text
+  price           Decimal       @db.Decimal(10, 2)
+  durationMinutes Int           @map("duration_minutes")
+  isActive        Boolean       @default(true) @map("is_active")
+  createdAt       DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
+  establishment   Establishment @relation(fields: [establishmentId], references: [id], onDelete: Cascade)
+  appointments    Appointment[]
+
+  @@index([establishmentId, isActive], map: "services_establishment_id_is_active_idx")
+  @@map("services")
+}
+
+model Appointment {
+  id                     String            @id @default(uuid()) @db.Uuid
+  clientId               String            @map("client_id") @db.Uuid
+  establishmentId        String            @map("establishment_id") @db.Uuid
+  serviceId              String            @map("service_id") @db.Uuid
+  startsAt               DateTime          @map("starts_at") @db.Timestamptz(3)
+  endsAt                 DateTime          @map("ends_at") @db.Timestamptz(3)
+  status                 AppointmentStatus @default(PENDING)
+  serviceName            String            @map("service_name") @db.VarChar(120)
+  servicePrice           Decimal           @map("service_price") @db.Decimal(10, 2)
+  serviceDurationMinutes Int               @map("service_duration_minutes")
+  clientNotes            String?           @map("client_notes") @db.VarChar(500)
+  cancellationReason     String?           @map("cancellation_reason") @db.VarChar(500)
+  cancelledAt            DateTime?         @map("cancelled_at") @db.Timestamptz(3)
+  createdAt              DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt              DateTime          @updatedAt @map("updated_at") @db.Timestamptz(3)
+  client                 User              @relation("ClientAppointments", fields: [clientId], references: [id], onDelete: Restrict)
+  establishment          Establishment     @relation(fields: [establishmentId], references: [id], onDelete: Restrict)
+  service                Service           @relation(fields: [serviceId], references: [id], onDelete: Restrict)
+
+  @@index([clientId, startsAt], map: "appointments_client_id_starts_at_idx")
+  @@index([establishmentId, startsAt], map: "appointments_establishment_id_starts_at_idx")
+  @@index([establishmentId, status, startsAt], map: "appointments_establishment_status_starts_at_idx")
+  @@index([serviceId], map: "appointments_service_id_idx")
+  @@map("appointments")
+}
+
+model Favorite {
+  userId          String        @map("user_id") @db.Uuid
+  establishmentId String        @map("establishment_id") @db.Uuid
+  createdAt       DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  establishment   Establishment @relation(fields: [establishmentId], references: [id], onDelete: Cascade)
+
+  @@id([userId, establishmentId])
+  @@index([establishmentId], map: "favorites_establishment_id_idx")
+  @@map("favorites")
+}
+
+model BusinessHour {
+  id              String        @id @default(uuid()) @db.Uuid
+  establishmentId String        @map("establishment_id") @db.Uuid
+  dayOfWeek       Int           @map("day_of_week") @db.SmallInt
+  opensAtMinute   Int           @map("opens_at_minute") @db.SmallInt
+  closesAtMinute  Int           @map("closes_at_minute") @db.SmallInt
+  createdAt       DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
+  establishment   Establishment @relation(fields: [establishmentId], references: [id], onDelete: Cascade)
+
+  @@unique([establishmentId, dayOfWeek, opensAtMinute], map: "business_hours_establishment_day_opens_key")
+  @@index([establishmentId, dayOfWeek], map: "business_hours_establishment_day_idx")
+  @@map("business_hours")
+}
+
+model ScheduleBlock {
+  id              String        @id @default(uuid()) @db.Uuid
+  establishmentId String        @map("establishment_id") @db.Uuid
+  startsAt        DateTime      @map("starts_at") @db.Timestamptz(3)
+  endsAt          DateTime      @map("ends_at") @db.Timestamptz(3)
+  reason          String?       @db.VarChar(255)
+  createdAt       DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
+  establishment   Establishment @relation(fields: [establishmentId], references: [id], onDelete: Cascade)
+
+  @@index([establishmentId, startsAt, endsAt], map: "schedule_blocks_establishment_period_idx")
+  @@map("schedule_blocks")
 }
