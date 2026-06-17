@@ -51,4 +51,25 @@ describe('HTTP contracts', () => {
     expect(response.status).toBe(401);
     expect(response.body.error.code).toBe('UNAUTHORIZED');
   });
+
+  it('validates auth register payloads before accessing the database', async () => {
+    const response = await request(app)
+      .post('/api/v1/auth/register')
+      .send({
+        name: 'Jo',
+        email: 'invalid',
+        password: '123',
+        role: 'CLIENT',
+      });
+
+    expect(response.status).toBe(422);
+    expect(response.body.error.code).toBe('VALIDATION_ERROR');
+  });
+
+  it('requires authentication for the current user route', async () => {
+    const response = await request(app).get('/api/v1/auth/me');
+
+    expect(response.status).toBe(401);
+    expect(response.body.error.code).toBe('UNAUTHORIZED');
+  });
 });

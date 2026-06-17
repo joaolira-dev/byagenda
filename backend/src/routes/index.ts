@@ -1,5 +1,6 @@
 import { Router } from 'express';
 
+import { authRouter } from './auth.routes.js';
 import { categoryRouter } from './category.routes.js';
 import {
   establishmentRouter,
@@ -9,6 +10,7 @@ import { serviceRouter } from './service.routes.js';
 
 export const apiRouter = Router();
 
+apiRouter.use('/auth', authRouter);
 apiRouter.use('/categories', categoryRouter);
 apiRouter.use('/owner/establishments', ownerEstablishmentRouter);
 apiRouter.use('/establishments/:establishmentId/services', serviceRouter);

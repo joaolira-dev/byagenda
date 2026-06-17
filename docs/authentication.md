@@ -48,6 +48,50 @@ Rotas administrativas usam `requireRole(UserRole.OWNER)`.
 - Usuarios `CLIENT` recebem `403 FORBIDDEN`.
 - Tokens validos de usuarios inativos ou inexistentes recebem `401`.
 
+## Endpoints
+
+```text
+POST /api/v1/auth/register
+POST /api/v1/auth/login
+GET  /api/v1/auth/me
+```
+
+Cadastro:
+
+```json
+{
+  "name": "Joao Lira",
+  "email": "joao@email.com",
+  "password": "12345678",
+  "role": "CLIENT"
+}
+```
+
+Login:
+
+```json
+{
+  "email": "joao@email.com",
+  "password": "12345678"
+}
+```
+
+Resposta de sessao:
+
+```json
+{
+  "data": {
+    "token": "jwt",
+    "user": {
+      "id": "uuid",
+      "name": "Joao Lira",
+      "email": "joao@email.com",
+      "role": "CLIENT"
+    }
+  }
+}
+```
+
 ## Erros
 
 ```json
