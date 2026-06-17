@@ -11,13 +11,12 @@ type AccessTokenPayload = {
 
 export const authenticate: RequestHandler = async (request, _response, next) => {
   try {
-    const authorization = request.headers.authorization;
+    const token = getBearerToken(request.headers.authorization);
 
-    if (!authorization?.startsWith('Bearer ')) {
+    if (!token) {
       throw new AppError(401, 'UNAUTHORIZED', 'Token de acesso ausente');
     }
 
-    const token = authorization.slice('Bearer '.length);
     const payload = jwt.verify(token, env.JWT_SECRET) as AccessTokenPayload;
 
     if (!payload.sub) {
@@ -48,3 +47,13 @@ export const authenticate: RequestHandler = async (request, _response, next) => 
     next(new AppError(401, 'INVALID_TOKEN', 'Token de acesso invalido'));
   }
 };
+
+function getBearerToken(authorization: string | undefined) {
+  const [scheme, token] = authorization?.trim().split(/\s+/) ?? [];
+
+  if (scheme?.toLowerCase() !== 'bearer' || !token) {
+    return null;
+  }
+
+  return token;
+}
