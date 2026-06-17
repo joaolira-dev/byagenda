@@ -42,11 +42,11 @@ export function SearchBar({
     <View style={[styles.container, containerStyle]}>
       {searchIcon ?? <Text style={styles.searchIcon}>⌕</Text>}
       <TextInput
+        onChangeText={onChangeText}
         placeholder={placeholder}
         placeholderTextColor={placeholderTextColor}
-        value={value}
-        onChangeText={onChangeText}
         style={[styles.input, style]}
+        value={value}
         {...props}
       />
       {value.length > 0 ? (

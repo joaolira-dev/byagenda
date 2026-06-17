@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import {
+  type StyleProp,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -14,7 +15,7 @@ type CardProps = {
   title?: string;
   subtitle?: string;
   onPress?: () => void;
-  style?: ViewStyle;
+  style?: StyleProp<ViewStyle>;
 };
 
 export function Card({ children, title, subtitle, onPress, style }: CardProps) {
