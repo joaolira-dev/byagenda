@@ -19,7 +19,11 @@ import {
 } from 'react-native';
 
 import { Button, Input } from '@/components';
+import { AuthProvider } from '@/contexts/AuthContext';
+import { useAuth } from '@/hooks/useAuth';
+import { ApiError } from '@/services/api';
 import { colors, radius, spacing, typography } from '@/themes';
+import type { AuthUser, UserRole } from '@/types/auth';
 
 type AuthScreen = 'splash' | 'start' | 'login' | 'register' | 'forgot';
 
@@ -64,6 +68,22 @@ const initialForgotForm: ForgotForm = {
 };
 
 export default function App() {
+  return (
+    <AuthProvider>
+      <AuthExperience />
+    </AuthProvider>
+  );
+}
+
+function AuthExperience() {
+  const {
+    isLoading: isAuthLoading,
+    isSubmitting,
+    login,
+    logout,
+    register,
+    user,
+  } = useAuth();
   const [screen, setScreen] = useState<AuthScreen>('splash');
   const [loginForm, setLoginForm] = useState<LoginForm>(initialLoginForm);
   const [registerForm, setRegisterForm] = useState<RegisterForm>(initialRegisterForm);
@@ -81,7 +101,7 @@ export default function App() {
     setScreen(nextScreen);
   };
 
-  const handleLogin = () => {
+  const handleLogin = async () => {
     const errors = validateLogin(loginForm);
     setLoginErrors(errors);
 
@@ -89,10 +109,20 @@ export default function App() {
       return;
     }
 
-    setFeedback('Login validado. Pronto para conectar com a API.');
+    try {
+      const session = await login({
+        email: loginForm.email.trim(),
+        password: loginForm.password,
+      });
+
+      setLoginForm(initialLoginForm);
+      setFeedback(`Bem-vindo, ${session.user.name.split(' ')[0]}!`);
+    } catch (error) {
+      setFeedback(getAuthErrorMessage(error));
+    }
   };
 
-  const handleRegister = () => {
+  const handleRegister = async () => {
     const errors = validateRegister(registerForm);
     setRegisterErrors(errors);
 
@@ -100,7 +130,19 @@ export default function App() {
       return;
     }
 
-    setFeedback('Cadastro validado. Fluxo visual finalizado.');
+    try {
+      const session = await register({
+        name: registerForm.name.trim(),
+        email: registerForm.email.trim(),
+        password: registerForm.password,
+        role: mapAccountTypeToRole(registerForm.accountType),
+      });
+
+      setRegisterForm(initialRegisterForm);
+      setFeedback(`Conta criada. Bem-vindo, ${session.user.name.split(' ')[0]}!`);
+    } catch (error) {
+      setFeedback(getAuthErrorMessage(error));
+    }
   };
 
   const handleForgot = () => {
@@ -114,8 +156,12 @@ export default function App() {
     setFeedback('Enviamos as instrucoes para o email informado.');
   };
 
-  if (screen === 'splash') {
+  if (screen === 'splash' || isAuthLoading) {
     return <SplashScreen onFinish={() => setScreen('start')} />;
+  }
+
+  if (user) {
+    return <AuthenticatedScreen user={user} onLogout={logout} />;
   }
 
   return (
@@ -142,6 +188,7 @@ export default function App() {
                 feedback={feedback}
                 form={loginForm}
                 errors={loginErrors}
+                isLoading={isSubmitting}
                 onChange={(field, value) => setLoginForm((current) => ({ ...current, [field]: value }))}
                 onForgotPassword={() => goTo('forgot')}
                 onRegister={() => goTo('register')}
@@ -154,6 +201,7 @@ export default function App() {
                 feedback={feedback}
                 form={registerForm}
                 errors={registerErrors}
+                isLoading={isSubmitting}
                 onChange={(field, value) => setRegisterForm((current) => ({ ...current, [field]: value }))}
                 onLogin={() => goTo('login')}
                 onSubmit={handleRegister}
@@ -173,6 +221,40 @@ export default function App() {
           </ScrollView>
         )}
       </KeyboardAvoidingView>
+    </SafeAreaView>
+  );
+}
+
+function AuthenticatedScreen({
+  onLogout,
+  user,
+}: {
+  onLogout: () => Promise<void>;
+  user: AuthUser;
+}) {
+  const roleLabel = user.role === 'OWNER' ? 'Estabelecimento' : 'Cliente';
+
+  return (
+    <SafeAreaView style={styles.safeArea}>
+      <StatusBar style="dark" />
+      <View style={styles.authenticatedScreen}>
+        <BrandLockup size="small" />
+        <View style={styles.authenticatedCard}>
+          <Text style={styles.authenticatedTitle}>
+            Ola, {user.name.split(' ')[0]}!
+          </Text>
+          <Text style={styles.authenticatedSubtitle}>
+            Sua sessao esta ativa como {roleLabel.toLowerCase()}.
+          </Text>
+          <Text style={styles.authenticatedEmail}>{user.email}</Text>
+          <Button
+            title="Sair"
+            variant="outline"
+            onPress={onLogout}
+            style={styles.logoutButton}
+          />
+        </View>
+      </View>
     </SafeAreaView>
   );
 }
@@ -328,6 +410,7 @@ function LoginScreen({
   feedback,
   form,
   errors,
+  isLoading,
   onChange,
   onForgotPassword,
   onRegister,
@@ -336,10 +419,11 @@ function LoginScreen({
   feedback: string;
   form: LoginForm;
   errors: FormErrors<LoginForm>;
+  isLoading: boolean;
   onChange: (field: keyof LoginForm, value: string) => void;
   onForgotPassword: () => void;
   onRegister: () => void;
-  onSubmit: () => void;
+  onSubmit: () => void | Promise<void>;
 }) {
   const [showPassword, setShowPassword] = useState(false);
 
@@ -384,6 +468,7 @@ function LoginScreen({
       <Button
         title="Entrar"
         size="large"
+        loading={isLoading}
         onPress={onSubmit}
         style={styles.primaryActionButton}
         textStyle={styles.primaryActionText}
@@ -408,6 +493,7 @@ function RegisterScreen({
   feedback,
   form,
   errors,
+  isLoading,
   onChange,
   onLogin,
   onSubmit,
@@ -415,9 +501,10 @@ function RegisterScreen({
   feedback: string;
   form: RegisterForm;
   errors: FormErrors<RegisterForm>;
+  isLoading: boolean;
   onChange: (field: keyof RegisterForm, value: string) => void;
   onLogin: () => void;
-  onSubmit: () => void;
+  onSubmit: () => void | Promise<void>;
 }) {
   const [showPassword, setShowPassword] = useState(false);
 
@@ -473,7 +560,7 @@ function RegisterScreen({
         inputWrapperStyle={styles.registerInputWrapper}
         label="Senha"
         onChangeText={(value) => onChange('password', value)}
-        placeholder="Minimo de 6 caracteres"
+        placeholder="Minimo de 8 caracteres"
         rightIcon={
           <PasswordVisibilityButton
             visible={showPassword}
@@ -490,6 +577,7 @@ function RegisterScreen({
       <Button
         title="Continuar"
         size="large"
+        loading={isLoading}
         onPress={onSubmit}
         style={styles.registerSubmitButton}
         textStyle={styles.registerSubmitText}
@@ -675,8 +763,8 @@ function validateLogin(form: LoginForm): FormErrors<LoginForm> {
     errors.email = 'Informe um e-mail valido.';
   }
 
-  if (form.password.trim().length < 6) {
-    errors.password = 'A senha deve ter pelo menos 6 caracteres.';
+  if (form.password.trim().length < 8) {
+    errors.password = 'A senha deve ter pelo menos 8 caracteres.';
   }
 
   return errors;
@@ -693,8 +781,8 @@ function validateRegister(form: RegisterForm): FormErrors<RegisterForm> {
     errors.email = 'Informe um e-mail valido.';
   }
 
-  if (form.password.trim().length < 6) {
-    errors.password = 'A senha deve ter pelo menos 6 caracteres.';
+  if (form.password.trim().length < 8) {
+    errors.password = 'A senha deve ter pelo menos 8 caracteres.';
   }
 
   return errors;
@@ -718,6 +806,30 @@ function hasErrors<T extends object>(errors: FormErrors<T>) {
   return Object.keys(errors).length > 0;
 }
 
+function mapAccountTypeToRole(accountType: AccountType): UserRole {
+  return accountType === 'business' ? 'OWNER' : 'CLIENT';
+}
+
+function getAuthErrorMessage(error: unknown) {
+  if (error instanceof ApiError) {
+    if (error.code === 'INVALID_CREDENTIALS') {
+      return 'E-mail ou senha invalidos.';
+    }
+
+    if (error.code === 'EMAIL_ALREADY_EXISTS') {
+      return 'Ja existe uma conta com este e-mail.';
+    }
+
+    if (error.code === 'VALIDATION_ERROR') {
+      return 'Confira os dados informados e tente novamente.';
+    }
+
+    return error.message;
+  }
+
+  return 'Nao foi possivel conectar ao servidor. Tente novamente.';
+}
+
 const styles = StyleSheet.create({
   safeArea: {
     backgroundColor: colors.white,
@@ -725,6 +837,47 @@ const styles = StyleSheet.create({
   },
   keyboardView: {
     flex: 1,
+  },
+  authenticatedScreen: {
+    alignItems: 'center',
+    backgroundColor: colors.white,
+    flex: 1,
+    justifyContent: 'center',
+    padding: spacing.xl,
+  },
+  authenticatedCard: {
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderRadius: radius.xl,
+    borderWidth: 1,
+    gap: spacing.md,
+    marginTop: spacing.xl,
+    padding: spacing.xl,
+    width: '100%',
+  },
+  authenticatedTitle: {
+    color: colors.text,
+    fontFamily: typography.fontFamily.bold,
+    fontSize: typography.size.xl,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  authenticatedSubtitle: {
+    color: colors.textSecondary,
+    fontFamily: typography.fontFamily.regular,
+    fontSize: typography.size.md,
+    textAlign: 'center',
+  },
+  authenticatedEmail: {
+    color: colors.primary,
+    fontFamily: typography.fontFamily.semiBold,
+    fontSize: typography.size.sm,
+    fontWeight: '600',
+  },
+  logoutButton: {
+    marginTop: spacing.sm,
+    width: '100%',
   },
   splashScreen: {
     backgroundColor: colors.white,
